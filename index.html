@@ -369,7 +369,7 @@ const DEFAULT_MEALS = {
 };
 
 // ── STATE ──────────────────────────────────────────────────────────────────
-let selected = {desayunos:null,almuerzos:null,comidas:null,meriendas:null,cenas:null};
+let selected = {desayunos:[],almuerzos:[],comidas:[],meriendas:[],cenas:[]};
 let activeSection = "desayunos";
 let chartPeriod = 7;
 let editingMealId = null;
@@ -379,6 +379,8 @@ function getHistory(){ try{ return JSON.parse(localStorage.getItem('nutri_histor
 function saveHistory(h){ localStorage.setItem('nutri_history', JSON.stringify(h)); }
 function getCustomMeals(){ try{ return JSON.parse(localStorage.getItem('nutri_custom_meals')||'{}'); }catch(e){ return {}; } }
 function saveCustomMeals(m){ localStorage.setItem('nutri_custom_meals', JSON.stringify(m)); }
+function loadSelected(){ try{ const s=JSON.parse(localStorage.getItem('nutri_selected')||'{}'); SECTIONS.forEach(sec=>{ if(!Array.isArray(s[sec.key])) s[sec.key]=[]; }); return s; }catch(e){ return {desayunos:[],almuerzos:[],comidas:[],meriendas:[],cenas:[]}; } }
+function saveSelected(){ localStorage.setItem('nutri_selected', JSON.stringify(selected)); }
 
 function getAllMeals(section){
   const custom = getCustomMeals()[section] || [];
@@ -419,12 +421,15 @@ function renderCards(){
   // Selected strip
   const strip = document.getElementById('sel-strip');
   const cur = selected[activeSection];
-  if(cur){
+  if(cur && cur.length>0){
+    const tk=cur.reduce((s,i)=>s+i.kcal,0), tp=cur.reduce((s,i)=>s+i.prot,0);
     strip.style.display='block';
     strip.style.background=sec.color+'20';
     strip.style.border=`1px solid ${sec.color}40`;
     strip.style.color=sec.color;
-    strip.innerHTML=`✓ <strong>${cur.nombre}</strong> · ${cur.kcal} kcal · ${cur.prot}g prot`;
+    strip.innerHTML=cur.length===1
+      ?`✓ <strong>${cur[0].nombre}</strong> · ${tk} kcal · ${tp}g prot`
+      :`✓ ${cur.length} seleccionadas · ${tk} kcal · ${tp}g prot`;
   } else { strip.style.display='none'; }
 
   // Default meals
@@ -454,7 +459,7 @@ function renderCards(){
 }
 
 function buildCard(item, sec, isCustom){
-  const isSel = selected[activeSection]?.id===item.id;
+  const isSel = selected[activeSection].some(i=>i.id===item.id);
   const card = document.createElement('div');
   card.className='card'+(isSel?' selected':'')+(isCustom?' custom-card':'');
   card.style.setProperty('--accent', sec.color);
@@ -488,8 +493,9 @@ function buildCard(item, sec, isCustom){
   // Click to select
   card.addEventListener('click', (e)=>{
     if(e.target.closest('.card-actions')) return;
-    selected[activeSection] = selected[activeSection]?.id===item.id ? null : item;
-    renderCards(); updateMacros();
+    const idx=selected[activeSection].findIndex(i=>i.id===item.id);
+    if(idx>=0) selected[activeSection].splice(idx,1); else selected[activeSection].push(item);
+    saveSelected(); renderCards(); updateMacros();
   });
 
   // Show prep on tap if exists
@@ -516,8 +522,8 @@ function buildCard(item, sec, isCustom){
 }
 
 function updateMacros(){
-  const kcal = Object.values(selected).reduce((s,i)=>s+(i?.kcal||0),0);
-  const prot = Object.values(selected).reduce((s,i)=>s+(i?.prot||0),0);
+  const kcal = Object.values(selected).reduce((s,arr)=>s+arr.reduce((ss,i)=>ss+i.kcal,0),0);
+  const prot = Object.values(selected).reduce((s,arr)=>s+arr.reduce((ss,i)=>ss+i.prot,0),0);
   document.getElementById('val-kcal').textContent=kcal;
   document.getElementById('val-prot').textContent=prot+'g';
   const kc=kcal===0?'#64748b':kcal>=1350&&kcal<=1550?'#10b981':kcal<1350?'#ef4444':'#f59e0b';
@@ -529,19 +535,21 @@ function updateMacros(){
 }
 
 function renderSummary(){
-  const allSel = Object.values(selected).every(v=>v!==null);
+  const anySel = Object.values(selected).some(arr=>arr.length>0);
   const box = document.getElementById('plan-summary');
-  if(!allSel){ box.classList.remove('visible'); return; }
+  if(!anySel){ box.classList.remove('visible'); return; }
   box.classList.add('visible');
   const rows = document.getElementById('sum-rows');
   rows.innerHTML='';
   SECTIONS.forEach(s=>{
-    const it=selected[s.key];
-    if(!it) return;
-    rows.innerHTML+=`<div class="sum-row"><span style="color:${s.color}">${s.emoji} ${it.nombre}</span><span class="sum-nums">${it.kcal} kcal · ${it.prot}g</span></div>`;
+    const items=selected[s.key];
+    if(!items||!items.length) return;
+    items.forEach(it=>{
+      rows.innerHTML+=`<div class="sum-row"><span style="color:${s.color}">${s.emoji} ${it.nombre}</span><span class="sum-nums">${it.kcal} kcal · ${it.prot}g</span></div>`;
+    });
   });
-  const tk=Object.values(selected).reduce((s,i)=>s+(i?.kcal||0),0);
-  const tp=Object.values(selected).reduce((s,i)=>s+(i?.prot||0),0);
+  const tk=Object.values(selected).reduce((s,arr)=>s+arr.reduce((ss,i)=>ss+i.kcal,0),0);
+  const tp=Object.values(selected).reduce((s,arr)=>s+arr.reduce((ss,i)=>ss+i.prot,0),0);
   const kc=tk>=1350&&tk<=1550?'#10b981':tk<1350?'#ef4444':'#f59e0b';
   const pc=tp>=140?'#10b981':tp>=100?'#f59e0b':'#ef4444';
   document.getElementById('sum-total-val').innerHTML=`<span style="color:${kc};font-family:'DM Mono',monospace">${tk} kcal</span> · <span style="color:${pc};font-family:'DM Mono',monospace">${tp}g prot</span>`;
@@ -602,7 +610,9 @@ function saveCustomMeal(){
     const idx = customs[section].findIndex(m=>m.id===editingMealId);
     if(idx>=0) customs[section][idx] = {...customs[section][idx], nombre, kcal, prot};
     // update selected if this meal was selected
-    if(selected[section]?.id===editingMealId) selected[section]={...selected[section],nombre,kcal,prot};
+    const selIdx=selected[section].findIndex(i=>i.id===editingMealId);
+    if(selIdx>=0) selected[section][selIdx]={...selected[section][selIdx],nombre,kcal,prot};
+    saveSelected();
   } else {
     const newId = 'custom_'+Date.now();
     customs[section].push({id:newId, nombre, kcal, prot, descripcion:'', prep:'', custom:true});
@@ -620,7 +630,8 @@ function deleteCustomMeal(section, mealId, e){
   if(!confirm('¿Eliminar esta comida personalizada?')) return;
   const customs = getCustomMeals();
   customs[section] = (customs[section]||[]).filter(m=>m.id!==mealId);
-  if(selected[section]?.id===mealId) selected[section]=null;
+  selected[section]=selected[section].filter(i=>i.id!==mealId);
+  saveSelected();
   saveCustomMeals(customs);
   renderCards(); updateMacros();
   showToast('Comida eliminada');
@@ -628,8 +639,8 @@ function deleteCustomMeal(section, mealId, e){
 
 // ── REGISTRO ───────────────────────────────────────────────────────────────
 function fillFromPlan(){
-  const kcal=Object.values(selected).reduce((s,i)=>s+(i?.kcal||0),0);
-  const prot=Object.values(selected).reduce((s,i)=>s+(i?.prot||0),0);
+  const kcal=Object.values(selected).reduce((s,arr)=>s+arr.reduce((ss,i)=>ss+i.kcal,0),0);
+  const prot=Object.values(selected).reduce((s,arr)=>s+arr.reduce((ss,i)=>ss+i.prot,0),0);
   if(!kcal){ showToast('Primero selecciona comidas en el Plan'); return; }
   document.getElementById('reg-kcal').value=kcal;
   document.getElementById('reg-prot').value=prot;
@@ -859,6 +870,7 @@ function showToast(msg){
 }
 
 // ── INIT ───────────────────────────────────────────────────────────────────
+selected = loadSelected();
 initPlan();
 </script>
 </body>
