@@ -172,6 +172,10 @@ canvas{width:100%!important;display:block}
 <div class="page active" id="page-plan">
   <h1 class="page-title">Plan Nutricional</h1>
   <p class="page-sub">70 kg · 164 cm · Objetivo: ≥140g proteína · ~1.450 kcal</p>
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px">
+    <span style="font-size:11px;color:var(--muted);font-weight:700;letter-spacing:0.08em;white-space:nowrap">FECHA</span>
+    <input type="date" id="plan-fecha" onchange="onPlanFechaChange()" style="flex:1;background:transparent;border:none;color:var(--text);font-size:15px;font-family:'DM Sans',sans-serif;outline:none;color-scheme:dark">
+  </div>
   <div class="macros">
     <div class="macro-box" id="box-kcal">
       <div class="macro-label">CALORÍAS</div>
@@ -374,6 +378,7 @@ const DEFAULT_MEALS = {
 
 // ── STATE ──────────────────────────────────────────────────────────────────
 let selected = {desayunos:[],almuerzos:[],comidas:[],meriendas:[],cenas:[]};
+let planFecha = new Date().toISOString().split('T')[0];
 let activeSection = "desayunos";
 let chartPeriod = 7;
 let editingMealId = null;
@@ -383,8 +388,9 @@ function getHistory(){ try{ return JSON.parse(localStorage.getItem('nutri_histor
 function saveHistory(h){ localStorage.setItem('nutri_history', JSON.stringify(h)); }
 function getCustomMeals(){ try{ return JSON.parse(localStorage.getItem('nutri_custom_meals')||'{}'); }catch(e){ return {}; } }
 function saveCustomMeals(m){ localStorage.setItem('nutri_custom_meals', JSON.stringify(m)); }
-function loadSelected(){ try{ const s=JSON.parse(localStorage.getItem('nutri_selected')||'{}'); SECTIONS.forEach(sec=>{ if(!Array.isArray(s[sec.key])) s[sec.key]=[]; }); return s; }catch(e){ return {desayunos:[],almuerzos:[],comidas:[],meriendas:[],cenas:[]}; } }
-function saveSelected(){ localStorage.setItem('nutri_selected', JSON.stringify(selected)); }
+function getAllSelected(){ try{ const all=JSON.parse(localStorage.getItem('nutri_selected')||'{}'); if(Array.isArray(all.desayunos)){ const m={}; m[new Date().toISOString().split('T')[0]]=all; localStorage.setItem('nutri_selected',JSON.stringify(m)); return m; } return all; }catch(e){ return {}; } }
+function loadSelected(fecha){ const all=getAllSelected(); const s=all[fecha]||{}; SECTIONS.forEach(sec=>{ if(!Array.isArray(s[sec.key])) s[sec.key]=[]; }); return s; }
+function saveSelected(){ const all=getAllSelected(); all[planFecha]=selected; localStorage.setItem('nutri_selected',JSON.stringify(all)); }
 
 function getAllMeals(section){
   const custom = getCustomMeals()[section] || [];
@@ -403,7 +409,14 @@ function showPage(id, btn){
 }
 
 // ── PLAN ───────────────────────────────────────────────────────────────────
+function onPlanFechaChange(){
+  planFecha = document.getElementById('plan-fecha').value || new Date().toISOString().split('T')[0];
+  selected = loadSelected(planFecha);
+  initPlan();
+}
+
 function initPlan(){
+  document.getElementById('plan-fecha').value = planFecha;
   const tabsEl = document.getElementById('plan-tabs');
   tabsEl.innerHTML='';
   SECTIONS.forEach(s=>{
@@ -644,9 +657,7 @@ function deleteCustomMeal(section, mealId, e){
 
 // ── REGISTRO ───────────────────────────────────────────────────────────────
 function initRegistro(){
-  const hoy = new Date().toISOString().split('T')[0];
-  const input = document.getElementById('reg-fecha');
-  if(!input.value) input.value = hoy;
+  document.getElementById('reg-fecha').value = planFecha;
   onRegFechaChange();
 }
 
@@ -891,7 +902,8 @@ function showToast(msg){
 }
 
 // ── INIT ───────────────────────────────────────────────────────────────────
-selected = loadSelected();
+planFecha = new Date().toISOString().split('T')[0];
+selected = loadSelected(planFecha);
 initPlan();
 </script>
 </body>
