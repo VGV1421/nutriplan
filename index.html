@@ -172,9 +172,10 @@ canvas{width:100%!important;display:block}
 <div class="page active" id="page-plan">
   <h1 class="page-title">Plan Nutricional</h1>
   <p class="page-sub">70 kg · 164 cm · Objetivo: ≥140g proteína · ~1.450 kcal</p>
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px">
-    <span style="font-size:11px;color:var(--muted);font-weight:700;letter-spacing:0.08em;white-space:nowrap">FECHA</span>
-    <input type="date" id="plan-fecha" onchange="onPlanFechaChange()" style="flex:1;background:transparent;border:none;color:var(--text);font-size:15px;font-family:'DM Sans',sans-serif;outline:none;color-scheme:dark">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:14px;display:flex;align-items:center;gap:8px">
+    <button onclick="cambiarDiaPlan(-1)" style="background:var(--border);border:none;color:var(--text);border-radius:8px;padding:6px 12px;font-size:16px;cursor:pointer;flex-shrink:0">◀</button>
+    <input type="date" id="plan-fecha" onchange="onPlanFechaChange()" style="flex:1;background:transparent;border:none;color:var(--text);font-size:15px;font-family:'DM Sans',sans-serif;outline:none;color-scheme:dark;text-align:center">
+    <button onclick="cambiarDiaPlan(1)" style="background:var(--border);border:none;color:var(--text);border-radius:8px;padding:6px 12px;font-size:16px;cursor:pointer;flex-shrink:0">▶</button>
   </div>
   <div class="macros">
     <div class="macro-box" id="box-kcal">
@@ -216,8 +217,15 @@ canvas{width:100%!important;display:block}
   <h1 class="page-title">Registrar Día</h1>
   <p class="page-sub">Puedes registrar hoy o cualquier día anterior</p>
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:14px">
-    <div style="font-size:13px;color:#94a3b8;font-weight:600;margin-bottom:12px">Fecha</div>
-    <input type="date" id="reg-fecha" class="weight-input" onchange="onRegFechaChange()" style="font-size:16px;font-family:'DM Sans',sans-serif;width:100%;text-align:left;color-scheme:dark">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <span style="font-size:13px;color:#94a3b8;font-weight:600">Fecha</span>
+      <span id="reg-dia-label" style="font-size:11px;font-weight:700;color:var(--green);background:rgba(16,185,129,0.12);padding:2px 10px;border-radius:20px"></span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button onclick="cambiarDiaReg(-1)" style="background:var(--border);border:none;color:var(--text);border-radius:8px;padding:8px 14px;font-size:18px;cursor:pointer;flex-shrink:0">◀</button>
+      <input type="date" id="reg-fecha" class="weight-input" onchange="onRegFechaChange()" style="flex:1;font-size:15px;font-family:'DM Sans',sans-serif;text-align:center;color-scheme:dark;padding:10px 8px">
+      <button onclick="cambiarDiaReg(1)" style="background:var(--border);border:none;color:var(--text);border-radius:8px;padding:8px 14px;font-size:18px;cursor:pointer;flex-shrink:0">▶</button>
+    </div>
   </div>
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:14px">
     <div style="font-size:13px;color:#94a3b8;font-weight:600;margin-bottom:12px">Peso corporal</div>
@@ -379,6 +387,7 @@ const DEFAULT_MEALS = {
 // ── STATE ──────────────────────────────────────────────────────────────────
 let selected = {desayunos:[],almuerzos:[],comidas:[],meriendas:[],cenas:[]};
 let planFecha = new Date().toISOString().split('T')[0];
+let regFecha  = new Date().toISOString().split('T')[0];
 let activeSection = "desayunos";
 let chartPeriod = 7;
 let editingMealId = null;
@@ -411,6 +420,14 @@ function showPage(id, btn){
 // ── PLAN ───────────────────────────────────────────────────────────────────
 function onPlanFechaChange(){
   planFecha = document.getElementById('plan-fecha').value || new Date().toISOString().split('T')[0];
+  selected = loadSelected(planFecha);
+  initPlan();
+}
+
+function cambiarDiaPlan(delta){
+  const d = new Date(planFecha + 'T12:00:00');
+  d.setDate(d.getDate() + delta);
+  planFecha = d.toISOString().split('T')[0];
   selected = loadSelected(planFecha);
   initPlan();
 }
@@ -657,13 +674,33 @@ function deleteCustomMeal(section, mealId, e){
 
 // ── REGISTRO ───────────────────────────────────────────────────────────────
 function initRegistro(){
-  document.getElementById('reg-fecha').value = planFecha;
+  document.getElementById('reg-fecha').value = regFecha;
+  renderRegLabel();
   onRegFechaChange();
 }
 
+function cambiarDiaReg(delta){
+  const d = new Date(regFecha + 'T12:00:00');
+  d.setDate(d.getDate() + delta);
+  const hoy = new Date().toISOString().split('T')[0];
+  if(d.toISOString().split('T')[0] > hoy) return;
+  regFecha = d.toISOString().split('T')[0];
+  document.getElementById('reg-fecha').value = regFecha;
+  renderRegLabel();
+  onRegFechaChange();
+}
+
+function renderRegLabel(){
+  const hoy = new Date().toISOString().split('T')[0];
+  const ayer = new Date(Date.now()-86400000).toISOString().split('T')[0];
+  const el = document.getElementById('reg-dia-label');
+  if(el) el.textContent = regFecha===hoy ? 'Hoy' : regFecha===ayer ? 'Ayer' : '';
+}
+
 function onRegFechaChange(){
-  const fecha = document.getElementById('reg-fecha').value;
-  const existing = getHistory().find(d => d.fecha === fecha);
+  regFecha = document.getElementById('reg-fecha').value || new Date().toISOString().split('T')[0];
+  renderRegLabel();
+  const existing = getHistory().find(d => d.fecha === regFecha);
   document.getElementById('reg-peso').value = existing?.peso ?? '';
   document.getElementById('reg-kcal').value = existing?.kcal ?? '';
   document.getElementById('reg-prot').value = existing?.prot ?? '';
