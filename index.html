@@ -210,7 +210,11 @@ canvas{width:100%!important;display:block}
 <!-- PAGE: REGISTRO -->
 <div class="page" id="page-registro">
   <h1 class="page-title">Registrar Día</h1>
-  <p class="page-sub">Guarda los macros y peso del día de hoy</p>
+  <p class="page-sub">Puedes registrar hoy o cualquier día anterior</p>
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:14px">
+    <div style="font-size:13px;color:#94a3b8;font-weight:600;margin-bottom:12px">Fecha</div>
+    <input type="date" id="reg-fecha" class="weight-input" onchange="onRegFechaChange()" style="font-size:16px;font-family:'DM Sans',sans-serif;width:100%;text-align:left;color-scheme:dark">
+  </div>
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:14px">
     <div style="font-size:13px;color:#94a3b8;font-weight:600;margin-bottom:12px">Peso corporal</div>
     <div class="weight-row">
@@ -395,6 +399,7 @@ function showPage(id, btn){
   btn.classList.add('active');
   if(id==='graficas') renderCharts();
   if(id==='historial') renderHistory();
+  if(id==='registro') initRegistro();
 }
 
 // ── PLAN ───────────────────────────────────────────────────────────────────
@@ -638,6 +643,22 @@ function deleteCustomMeal(section, mealId, e){
 }
 
 // ── REGISTRO ───────────────────────────────────────────────────────────────
+function initRegistro(){
+  const hoy = new Date().toISOString().split('T')[0];
+  const input = document.getElementById('reg-fecha');
+  if(!input.value) input.value = hoy;
+  onRegFechaChange();
+}
+
+function onRegFechaChange(){
+  const fecha = document.getElementById('reg-fecha').value;
+  const existing = getHistory().find(d => d.fecha === fecha);
+  document.getElementById('reg-peso').value = existing?.peso ?? '';
+  document.getElementById('reg-kcal').value = existing?.kcal ?? '';
+  document.getElementById('reg-prot').value = existing?.prot ?? '';
+  document.getElementById('reg-nota').value = existing?.nota ?? '';
+}
+
 function fillFromPlan(){
   const kcal=Object.values(selected).reduce((s,arr)=>s+arr.reduce((ss,i)=>ss+i.kcal,0),0);
   const prot=Object.values(selected).reduce((s,arr)=>s+arr.reduce((ss,i)=>ss+i.prot,0),0);
@@ -653,10 +674,10 @@ function saveDay(){
   const prot=parseInt(document.getElementById('reg-prot').value);
   const nota=document.getElementById('reg-nota').value.trim();
   if(!kcal&&!prot&&!peso){ showToast('Rellena al menos un campo'); return; }
+  const fecha=document.getElementById('reg-fecha').value || new Date().toISOString().split('T')[0];
   const history=getHistory();
-  const today=new Date().toISOString().split('T')[0];
-  const idx=history.findIndex(d=>d.fecha===today);
-  const entry={fecha:today,kcal:kcal||null,prot:prot||null,peso:peso||null,nota};
+  const idx=history.findIndex(d=>d.fecha===fecha);
+  const entry={fecha,kcal:kcal||null,prot:prot||null,peso:peso||null,nota};
   if(idx>=0) history[idx]=entry; else history.push(entry);
   history.sort((a,b)=>a.fecha.localeCompare(b.fecha));
   saveHistory(history);
